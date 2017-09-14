@@ -1,0 +1,7 @@
+*.sw*
+*.save
+*~
+*.obj
+*.exe
+RCS
+str2num.*
