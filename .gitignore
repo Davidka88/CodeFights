@@ -5,3 +5,6 @@
 *.exe
 RCS
 str2num.*
+classReturn.cpp
+err.tmp
+new_groupingDishes.cpp

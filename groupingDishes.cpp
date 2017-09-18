@@ -90,7 +90,16 @@ int main (int argc, char *argv[])
 		{"Pizza", "Tomato", "Sausage", "Sauce", "Dough"},
 		{"Quesadilla", "Chicken", "Cheese", "Sauce"},
 		{"Sandwich", "Salad", "Bread", "Tomato", "Cheese"}};
+	struct HASHNODE {
+		string *value;
+		HASHNODE *next;
+	};
+	struct HASHENTRY {
+		unsigned short index;
+		unsigned short sequence;
+	};
 
+	DB2(sizeof HASHENTRY, sizeof HASHNODE);
 	// Shorten input values, if asked to do so
 	if (argc > 1)
 		stringstream(argv[1]) >> argc;
