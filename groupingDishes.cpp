@@ -1,5 +1,5 @@
 #define STANDALONE
-// $Id: addTwoHugeNumbers.cpp,v 1.1 2017/09/01 14:34:10 david Exp david $
+#ifdef STANDALONE
 #define DB(A) cout << #A "=" << (A) << endl
 #define DB1(A) DB(A)
 #define DB2(A,B) cout << #A "=" << (A) << " " #B "=" << (B) << endl
@@ -12,62 +12,145 @@
 #include <sstream>
 using namespace std;
 
+#endif // STANDALONE
+
 typedef std::vector<std::vector<std::string>> VecTable;
 
-std::vector<std::vector<std::string>> groupingDishes(std::vector<std::vector<std::string>> dishes) {
-	return dishes;
+struct HASHNODE {
+	string *value;
+	HASHNODE *next;
+	bool operator==(HASHNODE &other)
+	{
+		return this->value == other.value;
+	}
+	bool operator<(HASHNODE &other)
+	{
+		return this->value < other.value;
+	}
+	string *getname()
+	{
+		return this->value;
+	}
+};
+
+struct NAMEHASH {
+	struct {
+		HASHNODE *tableEntry;
+		short sequence;
+	} hashTable;
+	string *getname()
+	{
+		HASHNODE *hash_1 = this->hashTable.tableEntry;
+		short sequence = this->hashTable.sequence;
+		for (; sequence > 0; --sequence)
+			hash_1 = hash_1->next;
+		return hash_1->getname();
+	}
+	bool operator<(NAMEHASH &other)
+	{
+		HASHNODE *hash_1 = this->hashTable.tableEntry;
+		HASHNODE *hash_2 = other.hashTable.tableEntry;
+		short sequence = this->hashTable.sequence;
+
+		for (; sequence > 0; --sequence)
+			hash_1 = hash_1->next;
+
+		sequence = other.hashTable.sequence;
+		for (; sequence > 0; --sequence)
+			hash_2 = hash_2->next;
+			
+		return *hash_1 < *hash_2;
+	}
+	bool operator==(NAMEHASH &other)
+	{
+		HASHNODE *hash_1 = this->hashTable.tableEntry;
+		HASHNODE *hash_2 = other.hashTable.tableEntry;
+		short sequence = this->hashTable.sequence;
+
+		for (; sequence > 0; --sequence)
+			hash_1 = hash_1->next;
+
+		sequence = other.hashTable.sequence;
+		for (; sequence > 0; --sequence)
+			hash_2 = hash_2->next;
+			
+		return *hash_1 == *hash_2;
+	}
+};
+
+struct DISH {
+	NAMEHASH name;
+	short occurences;
+	bool operator<(DISH &other)
+	{
+		return this->name < other.name;
+	}
+	bool operator==(DISH &other)
+	{
+		return this->name == other.name;
+	}
+};
+
+struct INGREDIENT {
+	NAMEHASH name;
+	vector<DISH> dish;	// sort this
+	bool operator<(NAMEHASH &other)
+	{
+		return *this < other;
+	}
+	bool operator==(NAMEHASH &other)
+	{
+		return *this == other;
+	}
+};
+
+vector<INGREDIENT> Ingredient_List;	// sort this
+
+class IngredientTableRow {
+private:
+	string *ingredient;
+	vector<string *> dish;
+public:
+	friend ostream& operator<< (ostream& strm, const IngredientTableRow& row);
+	IngredientTableRow() {};
+	IngredientTableRow(vector<string *> rowx)
+	{
+		// I am unable to do the assignments  with an iterator
+		ingredient = rowx[0];
+		for (int i = 1; i < rowx.size(); ++i)
+			dish.push_back(rowx[i]);
+	}
+};
+
+ostream& operator<< (ostream& strm, const IngredientTableRow& row)
+{
+	strm << '[';
+	strm << row.ingredient;
+	strm << *row.dish[0];
+	for (int i = 0; i < row.dish.size(); ++i)
+		strm << ',' << *row.dish[i];
+	//someday I'll figure out why this gives a compiler error
+	//vector<string*>::iterator item;
+	//for (item = row.dish.begin(); item < row.dish.end(), ++item)
+		//strm << ',' << *item;
+	strm << ']';
+
+    return strm;
 }
 
-static const unsigned hashTableSize(1024);
+#define HASHTABLESIZE 1024
 
-struct ItemHash {
-	unsigned hashTableIndex;
-	unsigned sequenceNumber;
-};
-
-struct Ingredient {
-	ItemHash name;
-	vector<ItemHash> dinner;
-};
-
-struct HashNode {
-	string *value;
-	HashNode *next;
-};
-
-HashNode hashTable[hashTableSize];
-
-vector<HashNode> dinnerTable;
+HASHNODE hashTable[HASHTABLESIZE];
 
 unsigned hash_string (string &input)
 {
-	string::iterator c;
+	string::iterator ch;
 	unsigned hashSum = 1;
 
-	for (c = input.begin(); c < input.end(); c++)
-		hashSum *= *c;
+	for (ch = input.begin(); ch < input.end(); ch++)
+		hashSum *= *ch;
 
-	return hashSum % hashTableSize;
-}
-
-unsigned get_hash_value(string &input)
-{
-	unsigned hashValue = hash_string(input);
-	HashNode *curr = &hashTable[hashValue];
-
-	while (curr->next != nullptr) {
-		if (*(curr->value) == input)
-			return hashValue;
-		curr = curr->next;
-	}
-
-	// string not in table, curr points to last HashNode
-	HashNode *newNode = new HashNode;
-	newNode->value = new string(input);
-	newNode->next = nullptr;
-	curr->next = newNode;
-
-	return hashValue;
+	return hashSum % HASHTABLESIZE;
 }
 
 void printTable(VecTable &table)
@@ -77,12 +160,19 @@ void printTable(VecTable &table)
 
 	for (row = table.begin(); row < table.end(); row++) {
 		for (item = row->begin(); item < row->end(); item++){
-			cout << *item << " " << hash_string(*item) << " ";
+			cout << *item << " " << hash_string(*item) << "\t";
 		}
 		cout << endl;
 	}
 }
 
+std::vector<std::vector<std::string>> groupingDishes(std::vector<std::vector<std::string>> dishes)
+{
+	printTable(dishes);
+	return dishes;
+}
+
+#ifdef STANDALONE
 int main (int argc, char *argv[])
 {
 	VecTable testing
@@ -90,24 +180,13 @@ int main (int argc, char *argv[])
 		{"Pizza", "Tomato", "Sausage", "Sauce", "Dough"},
 		{"Quesadilla", "Chicken", "Cheese", "Sauce"},
 		{"Sandwich", "Salad", "Bread", "Tomato", "Cheese"}};
-	struct HASHNODE {
-		string *value;
-		HASHNODE *next;
-	};
-	struct HASHENTRY {
-		unsigned short index;
-		unsigned short sequence;
-	};
 
-	DB2(sizeof HASHENTRY, sizeof HASHNODE);
 	// Shorten input values, if asked to do so
 	if (argc > 1)
 		stringstream(argv[1]) >> argc;
 
 	printTable(testing);
-	string str1 ("test");
-	string str2 ("test1");
-	DB(str1==str2);
 
 	return 0;
 }
+#endif // STANDALONE
