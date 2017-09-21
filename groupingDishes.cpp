@@ -71,7 +71,7 @@ ostream& operator<< (ostream& strm, const HashValue& hashValue)
 }
 
 class HashTable {
-	friend ostream& operator<< (ostream& strm, const HashTable& table);
+	friend ostream& operator<< (ostream& strm, const HashTable& hashTable);
 private:
 	static int const tableSize=1024;
 	vector<HashNode> table[tableSize];
@@ -101,18 +101,21 @@ public:
 
 		
 		index = calculateHash(input);
+		hashValue.index = index;
+
 		if (table[index].size() == 0) {
 			hashValue.sequence = sequence;
 			hashNode.value = input;
 			table[index].push_back(hashNode);
+			return hashValue;
 		}
 
 		for (hn = table[index].begin(); hn < table[index].end(); ++hn) {
 			if (*hn->value== *input) {
 				hashValue.sequence = sequence;
 				return hashValue;
-				++sequence;
 			}
+			++sequence;
 		}
 
 		hashNode.value = input;
@@ -124,9 +127,18 @@ public:
 
 ostream& operator<< (ostream& strm, const HashTable& hashTable)
 {
-	HashNode node;
-	unsigned ctr;
+	unsigned ctr,ctr2;
 
+	for (ctr = 0; ctr < hashTable.tableSize; ++ctr) {
+		const vector<HashNode>& nodeList = hashTable.table[ctr];
+		if (nodeList.size() == 0)
+			continue;
+		strm << ctr << ". ";
+		for (ctr2 = 0; ctr2 < nodeList.size(); ++ctr2)
+			strm << " " << ctr2 << ":" << nodeList[ctr2];
+
+		strm << endl;
+	}
 
     return strm;
 }
@@ -137,9 +149,9 @@ void printAnswer(VecTable &table)
 	vector<string>::iterator item;
 
 	for (row = table.begin(); row < table.end(); row++) {
-		for (item = row->begin(); item < row->end(); item++) {
-			cout << *item << " " << *item << "\t";
-		}
+		for (item = row->begin(); item < row->end(); item++)
+			cout << *item << "\t";
+
 		cout << endl;
 	}
 }
@@ -192,7 +204,7 @@ int main (int argc, char *argv[])
 		{"Pizza"},
 		{"Sandwich"}};
 
-	groupingDishes(dupTest);
+	groupingDishes(bigger_test);
 
 	return 0;
 }
