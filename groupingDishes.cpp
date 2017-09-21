@@ -1,5 +1,4 @@
 #define STANDALONE
-#ifdef STANDALONE
 #define DB(A) cout << #A "=" << (A) << endl
 #define DB1(A) DB(A)
 #define DB2(A,B) cout << #A "=" << (A) << " " #B "=" << (B) << endl
@@ -7,25 +6,29 @@
                          << " " #B "=" << (B) \
 						 << " " #C "=" << (C) << endl
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <string>
 #include <sstream>
 using namespace std;
 
-#endif // STANDALONE
-
 typedef std::vector<std::vector<std::string>> VecTable;
 
-struct HASHNODE {
+class HashNode {
+	friend class HashTable;
+	friend ostream& operator<< (ostream& strm, const HashNode& node);
+	friend ostream& operator<< (ostream& strm, const HashTable& hashTable);
+private:
 	string *value;
-	HASHNODE *next;
-	bool operator==(HASHNODE &other)
+	HashNode *next; // each table entry is a linked list
+public:
+	bool operator==(HashNode &other)
 	{
-		return this->value == other.value;
+		return *this->value == *other.value;
 	}
-	bool operator<(HASHNODE &other)
+	bool operator<(HashNode &other)
 	{
-		return this->value < other.value;
+		return *this->value < *other.value;
 	}
 	string *getname()
 	{
@@ -33,146 +36,144 @@ struct HASHNODE {
 	}
 };
 
-struct NAMEHASH {
-	struct {
-		HASHNODE *tableEntry;
-		short sequence;
-	} hashTable;
-	string *getname()
-	{
-		HASHNODE *hash_1 = this->hashTable.tableEntry;
-		short sequence = this->hashTable.sequence;
-		for (; sequence > 0; --sequence)
-			hash_1 = hash_1->next;
-		return hash_1->getname();
-	}
-	bool operator<(NAMEHASH &other)
-	{
-		HASHNODE *hash_1 = this->hashTable.tableEntry;
-		HASHNODE *hash_2 = other.hashTable.tableEntry;
-		short sequence = this->hashTable.sequence;
-
-		for (; sequence > 0; --sequence)
-			hash_1 = hash_1->next;
-
-		sequence = other.hashTable.sequence;
-		for (; sequence > 0; --sequence)
-			hash_2 = hash_2->next;
-			
-		return *hash_1 < *hash_2;
-	}
-	bool operator==(NAMEHASH &other)
-	{
-		HASHNODE *hash_1 = this->hashTable.tableEntry;
-		HASHNODE *hash_2 = other.hashTable.tableEntry;
-		short sequence = this->hashTable.sequence;
-
-		for (; sequence > 0; --sequence)
-			hash_1 = hash_1->next;
-
-		sequence = other.hashTable.sequence;
-		for (; sequence > 0; --sequence)
-			hash_2 = hash_2->next;
-			
-		return *hash_1 == *hash_2;
-	}
-};
-
-struct DISH {
-	NAMEHASH name;
-	short occurences;
-	bool operator<(DISH &other)
-	{
-		return this->name < other.name;
-	}
-	bool operator==(DISH &other)
-	{
-		return this->name == other.name;
-	}
-};
-
-struct INGREDIENT {
-	NAMEHASH name;
-	vector<DISH> dish;	// sort this
-	bool operator<(NAMEHASH &other)
-	{
-		return *this < other;
-	}
-	bool operator==(NAMEHASH &other)
-	{
-		return *this == other;
-	}
-};
-
-vector<INGREDIENT> Ingredient_List;	// sort this
-
-class IngredientTableRow {
-private:
-	string *ingredient;
-	vector<string *> dish;
-public:
-	friend ostream& operator<< (ostream& strm, const IngredientTableRow& row);
-	IngredientTableRow() {};
-	IngredientTableRow(vector<string *> rowx)
-	{
-		// I am unable to do the assignments  with an iterator
-		ingredient = rowx[0];
-		for (int i = 1; i < rowx.size(); ++i)
-			dish.push_back(rowx[i]);
-	}
-};
-
-ostream& operator<< (ostream& strm, const IngredientTableRow& row)
+ostream& operator<< (ostream& strm, const HashNode& node)
 {
-	strm << '[';
-	strm << row.ingredient;
-	strm << *row.dish[0];
-	for (int i = 0; i < row.dish.size(); ++i)
-		strm << ',' << *row.dish[i];
-	//someday I'll figure out why this gives a compiler error
-	//vector<string*>::iterator item;
-	//for (item = row.dish.begin(); item < row.dish.end(), ++item)
-		//strm << ',' << *item;
-	strm << ']';
+
+	if (node.value == nullptr)
+		strm << "No Value";
+	else {
+		HashNode *nodePtr = node.next;
+		strm << *node.value;
+		for (; nodePtr != nullptr; nodePtr = nodePtr->next)
+			strm << " " << *nodePtr->value;
+	}
+    return strm;
+}
+
+class HashValue {
+	friend class HashTable;
+	friend ostream& operator<< (ostream& strm, const HashValue& hashValue);
+private:
+	short index;
+	short sequence;
+public:
+	HashValue() :index(-1),sequence(-1) {}
+	HashValue(short ind, short seq) :index(ind),sequence(seq) {}
+
+	bool operator==(HashValue other)
+	{
+		return this->index == other.index && this->sequence == other.sequence;
+	}
+};
+
+ostream& operator<< (ostream& strm, const HashValue& hashValue)
+{
+	strm << hashValue.index << "," << hashValue.sequence;
+    return strm;
+}
+
+class HashTable {
+	friend ostream& operator<< (ostream& strm, const HashTable& table);
+private:
+	static int const tableSize=1024;
+	HashNode table[tableSize];
+
+	short getTableIndex (string *input)
+	{
+		string::iterator ch;
+		unsigned hashSum = 1;
+
+		for (ch = input->begin(); ch < input->end(); ch++) {
+			hashSum *= *ch;
+			hashSum %= tableSize;
+		}
+
+		return hashSum;
+	};
+public:
+	HashTable() {
+		for (int i=0; i < tableSize; ++i) {
+			table[i].value = nullptr;
+			table[i].next = nullptr;
+		}
+	}
+
+	// Creates hashValue if it does not exist
+	HashValue getHashValue(string *input)
+	{
+		HashValue hashValue;
+		HashNode *hashNode;
+		short index;
+		short sequence;
+
+		index = getTableIndex(input);
+		hashNode = &table[index];
+		sequence = 0;
+		for (; hashNode->next != nullptr; hashNode = hashNode->next) {
+			if (*hashNode->value == *input)
+				break;
+			++sequence;
+		}
+
+		if (hashNode->value == nullptr)
+			hashNode->value = input;
+
+		hashValue.index = index;
+		hashValue.sequence = sequence;
+
+		return hashValue;
+	}
+};
+
+ostream& operator<< (ostream& strm, const HashTable& hashTable)
+{
+	HashNode node;
+	unsigned ctr;
+
+	for (ctr = 0; ctr < hashTable.tableSize; ++ctr) {
+		node = hashTable.table[ctr];
+		if (node.value != nullptr)
+			strm << setw(4) << right << ctr << ". " << node << endl;
+	}
 
     return strm;
 }
 
-#define HASHTABLESIZE 1024
-
-HASHNODE hashTable[HASHTABLESIZE];
-
-unsigned hash_string (string &input)
-{
-	string::iterator ch;
-	unsigned hashSum = 1;
-
-	for (ch = input.begin(); ch < input.end(); ch++)
-		hashSum *= *ch;
-
-	return hashSum % HASHTABLESIZE;
-}
-
-void printTable(VecTable &table)
+void printAnswer(VecTable &table)
 {
 	VecTable::iterator row;
 	vector<string>::iterator item;
 
 	for (row = table.begin(); row < table.end(); row++) {
-		for (item = row->begin(); item < row->end(); item++){
-			cout << *item << " " << hash_string(*item) << "\t";
+		for (item = row->begin(); item < row->end(); item++) {
+			cout << *item << " " << *item << "\t";
 		}
 		cout << endl;
 	}
 }
 
+void loadTable(HashTable &hashTable, VecTable &table)
+{
+	VecTable::iterator row;
+	vector<string>::iterator item;
+
+	for (row = table.begin(); row < table.end(); row++) {
+		for (item = row->begin(); item < row->end(); item++)
+			hashTable.getHashValue(&*item);
+	}
+}
+
 std::vector<std::vector<std::string>> groupingDishes(std::vector<std::vector<std::string>> dishes)
 {
-	printTable(dishes);
+	HashTable hashTable;
+
+	printAnswer(dishes);
+	loadTable(hashTable, dishes);
+	cout << hashTable;
+
 	return dishes;
 }
 
-#ifdef STANDALONE
 int main (int argc, char *argv[])
 {
 	VecTable testing
@@ -181,12 +182,25 @@ int main (int argc, char *argv[])
 		{"Quesadilla", "Chicken", "Cheese", "Sauce"},
 		{"Sandwich", "Salad", "Bread", "Tomato", "Cheese"}};
 
-	// Shorten input values, if asked to do so
-	if (argc > 1)
-		stringstream(argv[1]) >> argc;
+	VecTable bigger_test
+		{{"Chicken Curry", "Fried Rice", "d", "e"},
+		{"f", "g", "h", "i"},
+		{"x", "Garlic", "Pasta", "Quesadilla"},
+		{"Tomato", "Spinach", "Dough", "Pizza"},
+		{"Sandwich", "First", "Cucumber", "Cheeseeee"},
+		{"Salad", "Tomato Sauce", "Nuts", "Sauce"},
+		{"Second", "Sausage", "Rice", "Cheese"},
+		{"Chicken", "Nut", "Bread", "Onions"},
+		{"Chickens", "Curry Sauce", "a", "b"},
+		{"c", "Onion", "Line 39", "Line 40"}};
 
-	printTable(testing);
+	VecTable dupTest
+		{{"Pasta"},
+		{"Quesadilla"},
+		{"Pizza"},
+		{"Sandwich"}};
+
+	groupingDishes(dupTest);
 
 	return 0;
 }
-#endif // STANDALONE
