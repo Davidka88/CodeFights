@@ -20,8 +20,10 @@ class HashNode {
 	friend ostream& operator<< (ostream& strm, const HashTable& hashTable);
 private:
 	string *value;
-	HashNode *next; // each table entry is a linked list
 public:
+	HashNode() :value(nullptr) {}
+	HashNode(const HashNode &node) :value(node.value) {}
+
 	bool operator==(HashNode &other)
 	{
 		return *this->value == *other.value;
@@ -38,15 +40,11 @@ public:
 
 ostream& operator<< (ostream& strm, const HashNode& node)
 {
-
 	if (node.value == nullptr)
 		strm << "No Value";
-	else {
-		HashNode *nodePtr = node.next;
+	else
 		strm << *node.value;
-		for (; nodePtr != nullptr; nodePtr = nodePtr->next)
-			strm << " " << *nodePtr->value;
-	}
+
     return strm;
 }
 
@@ -76,9 +74,9 @@ class HashTable {
 	friend ostream& operator<< (ostream& strm, const HashTable& table);
 private:
 	static int const tableSize=1024;
-	HashNode table[tableSize];
+	vector<HashNode> table[tableSize];
 
-	short getTableIndex (string *input)
+	short calculateHash(string *input)
 	{
 		string::iterator ch;
 		unsigned hashSum = 1;
@@ -90,37 +88,36 @@ private:
 
 		return hashSum;
 	};
-public:
-	HashTable() {
-		for (int i=0; i < tableSize; ++i) {
-			table[i].value = nullptr;
-			table[i].next = nullptr;
-		}
-	}
 
+public:
 	// Creates hashValue if it does not exist
 	HashValue getHashValue(string *input)
 	{
 		HashValue hashValue;
-		HashNode *hashNode;
+		HashNode hashNode;
+		vector<HashNode>::iterator hn;
 		short index;
-		short sequence;
+		short sequence = 0;
 
-		index = getTableIndex(input);
-		hashNode = &table[index];
-		sequence = 0;
-		for (; hashNode->next != nullptr; hashNode = hashNode->next) {
-			if (*hashNode->value == *input)
-				break;
-			++sequence;
+		
+		index = calculateHash(input);
+		if (table[index].size() == 0) {
+			hashValue.sequence = sequence;
+			hashNode.value = input;
+			table[index].push_back(hashNode);
 		}
 
-		if (hashNode->value == nullptr)
-			hashNode->value = input;
+		for (hn = table[index].begin(); hn < table[index].end(); ++hn) {
+			if (*hn->value== *input) {
+				hashValue.sequence = sequence;
+				return hashValue;
+				++sequence;
+			}
+		}
 
-		hashValue.index = index;
+		hashNode.value = input;
+		table[index].push_back(hashNode);
 		hashValue.sequence = sequence;
-
 		return hashValue;
 	}
 };
@@ -130,11 +127,6 @@ ostream& operator<< (ostream& strm, const HashTable& hashTable)
 	HashNode node;
 	unsigned ctr;
 
-	for (ctr = 0; ctr < hashTable.tableSize; ++ctr) {
-		node = hashTable.table[ctr];
-		if (node.value != nullptr)
-			strm << setw(4) << right << ctr << ". " << node << endl;
-	}
 
     return strm;
 }
@@ -169,7 +161,7 @@ std::vector<std::vector<std::string>> groupingDishes(std::vector<std::vector<std
 
 	printAnswer(dishes);
 	loadTable(hashTable, dishes);
-	cout << hashTable;
+	cout << hashTable;	// display table
 
 	return dishes;
 }
