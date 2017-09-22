@@ -1,3 +1,4 @@
+// $Id: groupingDishes.cpp,v 1.7 2017/09/22 22:29:36 david Exp david $
 #define STANDALONE
 #define DB(A) cout << #A "=" << (A) << endl
 #define DB1(A) DB(A)
@@ -17,7 +18,6 @@ typedef std::vector<std::vector<std::string>> VecTable;
 class HashNode {
 	friend class HashTable;
 	friend ostream& operator<< (ostream& strm, const HashNode& node);
-	friend ostream& operator<< (ostream& strm, const HashTable& hashTable);
 private:
 	string *value;
 public:
@@ -73,7 +73,7 @@ ostream& operator<< (ostream& strm, const HashValue& hashValue)
 class HashTable {
 	friend ostream& operator<< (ostream& strm, const HashTable& hashTable);
 private:
-	static int const tableSize=1024;
+	static int const tableSize=256;
 	vector<HashNode> table[tableSize];
 
 	short calculateHash(string *input)
@@ -90,6 +90,38 @@ private:
 	};
 
 public:
+	/******************************************
+	 * mapping hashvalue to name string:      *
+	 * use hashvalue to access the hash table *
+	 * error if index>= size of table         *
+	 * row = hashtable[index]                 *
+	 * error if sequence>= size of row        *
+	 * get hashNode at index,sequence         *
+	 * return hashNode value                  *
+	 ******************************************/
+	string *mapValueToString(HashValue& hashValue)
+	{
+		short index = hashValue.index;
+		short sequence = hashValue.sequence;
+		static struct {
+			string index; //("hashvalue index out of range");
+			string sequence; //("hashvalue sequence out of range");
+		} outOfRange
+			{"hashvalue index out of range",
+			 "hashvalue sequence out of range"};
+		static string itemNotFound("item not found");
+
+		if (index >= tableSize)
+			return &outOfRange.index;
+
+		if (sequence > table[index].size())
+			return &outOfRange.sequence;
+
+		return table[index][sequence].value;
+
+		return &itemNotFound;
+	}
+
 	// Creates hashValue if it does not exist
 	HashValue getHashValue(string *input)
 	{
@@ -98,11 +130,11 @@ public:
 		vector<HashNode>::iterator hn;
 		short index;
 		short sequence = 0;
-
 		
 		index = calculateHash(input);
 		hashValue.index = index;
 
+		/// DO WE NEED THIS
 		if (table[index].size() == 0) {
 			hashValue.sequence = sequence;
 			hashNode.value = input;
@@ -143,6 +175,78 @@ ostream& operator<< (ostream& strm, const HashTable& hashTable)
     return strm;
 }
 
+class ResultTable {
+	friend ostream& operator<< (ostream& strm, ResultTable& resTbl);
+private:
+	struct Member {
+		HashValue nameHash;
+		string name;
+		short occurrences;
+	};
+	struct Row {
+		HashValue headHash;
+		string  head;
+		vector<Member>members;
+	};
+
+	vector<Row> table;
+
+public:
+	void addToRow(HashValue rowHash, HashValue memberHash)
+	{
+		unsigned ctr;
+		Row *pRow;
+
+		for (ctr = 0; ctr < table.size(); ++ctr) {
+			if (table[ctr].headHash == rowHash)
+				break;
+		}
+
+		if (ctr >= table.size()) {
+			Row newRow;
+			newRow.headHash = rowHash;
+			table.push_back(newRow);
+		}
+
+		pRow = &table[ctr];
+
+		for (ctr = 0; ctr < pRow->members.size(); ++ctr) {
+			if (pRow->members[ctr].nameHash == memberHash) {
+				++pRow->members[ctr].occurrences;
+				break;
+			}
+		}
+
+		if (ctr >= pRow->members.size()) {
+			Member newMember;
+			newMember.nameHash = memberHash;
+			newMember.occurrences = 1;
+			pRow->members.push_back(newMember);
+		}
+
+	}
+
+	void printTable(HashTable &hashTable)
+	{
+		vector<Row>::iterator vRow;
+		vector<Member>::iterator vMember;
+
+		for (vRow = table.begin(); vRow < table.end(); vRow++) {
+			cout << vRow->headHash << " ";
+			cout << " " << *hashTable.mapValueToString(vRow->headHash) << ":";
+
+			vMember = vRow->members.begin(); 
+			for (; vMember < vRow->members.end(); vMember++) {
+				cout <<  " " << vMember->nameHash;
+				cout <<  "(" << vMember->occurrences << ")";
+				cout << " " << *hashTable.mapValueToString(vMember->nameHash);
+			}
+
+			cout << endl;
+		}
+	}
+};
+
 void printAnswer(VecTable &table)
 {
 	VecTable::iterator row;
@@ -156,24 +260,35 @@ void printAnswer(VecTable &table)
 	}
 }
 
-void loadTable(HashTable &hashTable, VecTable &table)
+void loadTables(HashTable &hashT, ResultTable &resTbl, VecTable &table)
 {
 	VecTable::iterator row;
 	vector<string>::iterator item;
+	HashValue dinner;
+	HashValue hashValue;
 
 	for (row = table.begin(); row < table.end(); row++) {
-		for (item = row->begin(); item < row->end(); item++)
-			hashTable.getHashValue(&*item);
+		for (item = row->begin(); item < row->end(); item++) {
+			hashValue = hashT.getHashValue(&*item);
+			if (item == row->begin())
+				dinner = hashValue;
+			else
+				resTbl.addToRow(hashValue, dinner);
+		}
 	}
 }
 
 std::vector<std::vector<std::string>> groupingDishes(std::vector<std::vector<std::string>> dishes)
 {
 	HashTable hashTable;
+	ResultTable resultTable;
 
 	printAnswer(dishes);
-	loadTable(hashTable, dishes);
+	loadTables(hashTable, resultTable, dishes);
+	cout << "hashTable:" << endl;
 	cout << hashTable;	// display table
+	cout << "resultTable:" << endl;
+	resultTable.printTable(hashTable);
 
 	return dishes;
 }
@@ -198,13 +313,17 @@ int main (int argc, char *argv[])
 		{"Chickens", "Curry Sauce", "a", "b"},
 		{"c", "Onion", "Line 39", "Line 40"}};
 
-	VecTable dupTest
+	VecTable dupTest1
 		{{"Pasta"},
 		{"Quesadilla"},
 		{"Pizza"},
 		{"Sandwich"}};
 
-	groupingDishes(bigger_test);
+	VecTable dupTest2
+		{{"Pasta","Quesadilla"},
+		 {"Pizza", "Sandwich"}};
+
+	groupingDishes(testing);
 
 	return 0;
 }
